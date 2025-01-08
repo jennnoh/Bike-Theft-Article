@@ -1,0 +1,607 @@
+<!-- Link to Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Cabin:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+/* Set font for the entire document */
+body {
+  font-family: 'Cabin', sans-serif;
+  color: #333;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+/* Subtitle styling for "Opinion" */
+.subtitle {
+  font-family: 'Cabin', sans-serif;
+  font-weight: 400; /* Regular weight */
+  font-size: 1.2em;
+  color: #555;
+  text-align: center;
+  margin-top: 20px;
+}
+
+/* Title styling */
+h1.title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700; /* Bold */
+  font-size: 2.5em;
+  text-align: center;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+/* Author styling */
+.author {
+  font-family: 'Cabin', sans-serif;
+  font-weight: 700; /* Bold */
+  font-size: 1.1em;
+  text-align: center;
+  color: #333;
+  margin-top: 5px;
+}
+
+/* Date styling */
+.date {
+  font-family: 'Cabin', sans-serif;
+  font-weight: 400; /* Regular weight */
+  font-size: 0.9em;
+  color: #777;
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* Italic styling for h2 */
+h2 {
+  font-style: italic;
+}
+
+</style>
+
+<!-- HTML Structure for Title Page -->
+<div class="subtitle">Opinion</div>
+<h1 class="title">Bike Theft Epidemic in Toronto: What Can We Do to Avoid Bike Thefts?</h1>
+<div class="author">By Jenny Oh & Nicholas Susanto</div>
+<div class="date">November 12, 2024</div>
+
+ 
+
+ 
+<br>
+<br>
+
+## Is Toronto Really Facing a Bike Theft Epidemic?
+
+Is Toronto experiencing a bicycle theft epidemic? The question has been a hot topic in the media, especially since the rise of bicycle theft cases during and after the pandemic. Looking at the figure below, incidences of bicycle thefts have increased significantly since 2014, peaking at around 4,000 total yearly cases in 2018 and 2020, with 2020 likely influenced by the surge in biking during the pandemic when more people turned to cycling as a safer and more flexible mode of transportation. Bike theft cases, however, have been gradually dropping since, settling back to 2014’s level in 2023. Despite this gradual drop, bicycle thefts remain a significant issue in Toronto. 
+```{r, include=FALSE, warning = F, message = FALSE}
+knitr::opts_chunk$set(echo = FALSE, include=TRUE, eval=TRUE)
+required_packages <- c("lubridate", "sf", "tidyverse", "leaflet", "plotly","dplyr", "waffle", "showtext", "MetBrewer", "ggtext", "RColorBrewer", "forcats")
+for (p in required_packages) {
+  if (!require(p, character.only = TRUE)) {
+    install.packages(p, character.only = TRUE)
+  }
+}
+
+
+library(tidyverse)
+library(sf)
+library(lubridate)
+
+
+bike_thefts_sf <- read_sf("Bicycle_Thefts_Open_Data.geojson") |>
+  mutate(
+    occurence_date = as_date(
+      OCC_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
+    ),
+    report_date = as_date(
+      REPORT_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
+    ) ,
+    OCC_MONTH = factor(format(occurence_date, "%B"), levels = month.name),
+         OCC_DOW = factor(format(occurence_date, "%A"),
+                          levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+  )
+```
+
+
+```{r bike_thefts_yearly, fig.width=15, fig.height=9, fig.align='center', out.width="90%", echo=F, warning = F, message = FALSE}
+# Load libraries
+library(tidyverse)
+library(showtext)
+library(forcats)
+
+bike_thefts.csv <- read.csv("Bicycle_Thefts_Open_Data.csv")
+
+bike_thefts.csv <-
+  bike_thefts.csv %>% 
+  mutate(occurence_date = as.POSIXct(OCC_DATE, format = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"),
+         report_date = as.POSIXct(REPORT_DATE, format = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"),
+         OCC_MONTH = factor(format(occurence_date, "%B"), levels = month.name),
+         OCC_DOW = factor(format(occurence_date, "%A"),
+                          levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>% 
+  select(REPORT_YEAR, report_date, occurence_date, OCC_YEAR, OCC_MONTH, OCC_DOW,
+         OCC_HOUR, PRIMARY_OFFENCE, LOCATION_TYPE, PREMISES_TYPE, BIKE_TYPE, BIKE_COST,
+         STATUS, NEIGHBOURHOOD_158, HOOD_158, LONG_WGS84, LAT_WGS84)
+
+
+
+
+# Load Google Fonts for consistent styling
+font_add_google("Outfit", "title_font")
+font_add_google("Cabin", "body_font")
+showtext_auto()
+
+# Define font names
+title_font <- "title_font"
+body_font <- "body_font"
+
+# Define text elements for the plot
+title_text <- "How Toronto’s Bike Theft Trends Have Changed Over the Past 10 Years?"
+subtitle_text <- "Annual count of reported bicycle thefts in the city of Toronto from 2014 to 2023"
+caption_text <- "Data Source: Toronto Police Bicycle Thefts Open Data"
+
+# Filter and preprocess the data
+bike_thefts <- read.csv("Bicycle_Thefts_Open_Data.csv")
+
+yearly_theft_counts <- bike_thefts %>%
+  mutate(REPORT_YEAR = as.integer(format(as.POSIXct(REPORT_DATE, format = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"), "%Y"))) %>%
+  filter(REPORT_YEAR != 2024) %>%
+  group_by(REPORT_YEAR) %>%
+  summarise(thefts = n())
+
+# Reorder REPORT_YEAR to display in descending order
+yearly_theft_counts <- yearly_theft_counts %>%
+  mutate(REPORT_YEAR = fct_rev(factor(REPORT_YEAR)))
+
+# Plot as a lollipop chart with styling
+yearly_theft_counts %>% 
+  ggplot(aes(x = REPORT_YEAR, y = thefts)) +
+  geom_segment(aes(x = REPORT_YEAR, xend = REPORT_YEAR, y = 0, yend = thefts), color = "grey") +
+  geom_point(color = "orangered2", size = 4) +
+  scale_x_discrete(limits = unique(yearly_theft_counts$REPORT_YEAR)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  labs(
+    title = title_text,
+    subtitle = subtitle_text,
+    x = "Year",
+    y = "Number of Thefts",
+    caption = caption_text
+  ) +
+  theme_minimal(base_family = body_font) +
+  theme(
+    plot.title = element_text(family = title_font, color = "grey20", size = 24, face = "bold", margin = margin(b = 10), hjust = 0),
+    plot.subtitle = element_text(family = body_font, size = 14, margin = margin(b = 20), hjust = 0),
+    plot.caption = element_text(family = body_font, size = 10, color = "grey40", margin = margin(t = 20)),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.y = element_blank(),
+    plot.margin = margin(40, 10, 40,0)
+  ) 
+
+```
+
+The trend raises the question: What can we, bicycle users, do to prevent these incidents from happening to ourselves? Let’s take a deeper dive into the “Bike Thefts” data provided by the Toronto Police Service to answer these questions. We will try to uncover patterns and insights on where, when, and how bike thefts happen most frequently. Note that the data provided only consist of reported bike thefts in Toronto. Data from 2024 were also excluded given that it is incomplete and could mislead observed trends.
+
+<br>
+<br>
+
+## Where Do Bike Thefts Happen Most Often?
+Majority of bike theft cases almost, unsurprisingly, occurred close to the heart of the downtown area. Incidents seemed to be concentrated around the Yonge-Bay Corridor, being the worst neighbourhood with an average of 206.9 incidents each year. The neighbourhood itself spans from College Park until Union Station, consisting of various attractions such as the Toronto Eaton Centre and office complexes such as the Financial District. Being a bustling area with high pedestrian traffic, many cyclists park their bikes outdoors due to limited secure indoor options, making them easier targets for theft. <br>
+```{r, include=FALSE, warning = F, message = FALSE}
+bike_thefts <-
+  read.csv("Bicycle_Thefts_Open_Data.csv") %>% 
+  mutate(occurence_date = as.POSIXct(OCC_DATE, format = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"),
+         report_date = as.POSIXct(REPORT_DATE, format = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"),
+         OCC_MONTH = factor(format(occurence_date, "%B"), levels = month.name),
+         OCC_DOW = factor(format(occurence_date, "%A"),
+                          levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>% 
+  select(REPORT_YEAR, report_date, occurence_date, OCC_YEAR, OCC_MONTH, OCC_DOW,
+         OCC_HOUR, PRIMARY_OFFENCE, LOCATION_TYPE, PREMISES_TYPE, BIKE_TYPE, BIKE_COST,
+         STATUS, NEIGHBOURHOOD_158, HOOD_158, LONG_WGS84, LAT_WGS84)
+
+neighbourhoods_sf <- read_sf("Neighbourhoods - 4326.geojson")
+
+# Data Processing (Making Map summary)
+map_summary <- bike_thefts %>%
+  filter(REPORT_YEAR < 2024) %>% 
+  group_by(REPORT_YEAR, HOOD_158) %>%   # Replace with the actual neighborhood column name
+  summarize(theft_count = n()) %>% 
+  rename(AREA_SHORT_CODE = HOOD_158)
+
+map_summary <- map_summary %>%
+  group_by(AREA_SHORT_CODE) %>% 
+  mutate(avg_per_year = mean(theft_count)) %>% 
+  summarise(theft_count = sum(theft_count),
+            average.yearly = mean(avg_per_year)) %>% 
+  mutate(prop.total.perc = round(theft_count/sum(theft_count)*100, 2))
+
+theft_map_data <- neighbourhoods_sf %>%
+  left_join(map_summary, by = "AREA_SHORT_CODE")
+
+# Find premise with most incidences for each neighbourhood
+top_premise <-
+  bike_thefts %>%
+  filter(REPORT_YEAR < 2024) %>%
+  group_by(HOOD_158, PREMISES_TYPE) %>%               # Group by neighbourhood and premises
+  summarise(total_thefts = n()) %>%  # Sum up theft counts
+  arrange(desc(total_thefts)) %>%                     # Arrange in descending order of thefts
+  group_by(HOOD_158) %>%                         # Regroup by neighbourhood
+  slice_max(total_thefts, n = 1, with_ties = FALSE)  %>% 
+  rename(AREA_SHORT_CODE = HOOD_158)  # Select the premises with the most thefts
+
+theft_map_data <- theft_map_data %>%
+  left_join(top_premise, by = "AREA_SHORT_CODE")
+```
+
+```{r, echo = F, warning = F, message = FALSE, fig.align='center'}
+library(leaflet)
+library(RColorBrewer)
+
+# Define a custom color palette based on the specified colors
+mypalette <- colorNumeric(
+  palette = c("#4575b4", "#91bfdb", "#e0f3f8", "#ffffbf", "#fee090", "#fc8d59", "#d73027"),
+  domain = theft_map_data$average.yearly,
+  na.color = "transparent"
+)
+
+# Prepare the text for tooltips
+mytext <- paste(
+  "Neighbourhood Name: ", theft_map_data$AREA_NAME, "<br/>",
+  "Theft Count: ", theft_map_data$average.yearly, "<br/>",
+    "Premise with Most Thefts: ", theft_map_data$PREMISES_TYPE, "<br/>",
+  sep = ""
+) %>%
+  lapply(htmltools::HTML)
+
+# Create the choropleth map with leaflet
+m <- leaflet(theft_map_data) %>%
+  addTiles() %>%
+  setView(lat = 43.65407, lng = -79.37996, zoom = 12) %>%
+  addPolygons(
+    fillColor = ~ mypalette(average.yearly),
+    stroke = TRUE,
+    fillOpacity = 0.75,
+    color = "white",
+    weight = 0.5,
+    label = mytext,
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "13px",
+      direction = "auto"
+    )) %>%
+  addLegend(
+    pal = mypalette, values = ~average.yearly, opacity = 0.9,
+    title = "Theft Count per Year", position = "bottomleft"
+  )
+
+m
+```
+
+
+Bike theft incidents seemed to concentrate near and around the Yonge-Bay Corridor. Its surrounding neighbourhoods, spanning from Annex down to St. Lawrence-East Bayside-The Islands, appeared to observe almost 40% of the total bike theft incidents that happened between 2014 and 2023. The trend is alarming given that we have a total of 10 neighbourhoods (~6% of total neighbourhoods!) covering almost 40% of total incidents throughout the year.
+
+<br>
+
+
+
+```{r bike_thefts_premise, fig.width=16, fig.height=9, fig.align='center', out.width="100%", echo = F, warning = F, message = FALSE}
+library(dplyr)
+library(ggplot2)
+library(waffle)
+library(showtext)
+library(MetBrewer)
+library(ggtext)
+
+# Data preprocessing
+filtered_bike_thefts_df <- bike_thefts_sf %>%
+  # Step 1: Filter data for specific neighborhoods and years
+  filter(HOOD_158 %in% c("170", "168", "166", "164", "095", "078", "073", "167", "165", "079"),
+         OCC_YEAR >= 2014 & OCC_YEAR <= 2023) %>%
+  
+  # Step 2: Group by neighborhood and premises type, calculate average incidents per year
+  group_by(NEIGHBOURHOOD_158, PREMISES_TYPE) %>%
+  mutate(NEIGHBOURHOOD_158 = sub("\\(.*", "", NEIGHBOURHOOD_158)) %>%
+  mutate(NEIGHBOURHOOD_158 = str_replace(NEIGHBOURHOOD_158, "-", "-\n")) %>%
+  summarise(n = n() / length(unique(OCC_YEAR)), .groups = "drop")
+
+
+# Setting up fonts
+font_add_google("Outfit", "title_font")
+font_add_google("Cabin", "body_font")
+showtext_auto()
+
+title_font <- "title_font"
+body_font <- "body_font"
+
+# Defining text for titles
+title_text <-"Top 10 Toronto Neighbourhoods for Bike Thefts: Where Were They Stolen?"
+subtitle_text <- "Average number of bike thefts per year across different premises types from 2014 to 2023"
+caption_text <- "Data Source: Toronto Police Bicycle Thefts Open Data"
+
+# Plotting
+ggplot(filtered_bike_thefts_df, aes(fill = PREMISES_TYPE, values = n)) +
+  geom_waffle(color = "white", size = 0.25, n_rows = 6, flip = TRUE) +
+  facet_wrap(~NEIGHBOURHOOD_158, nrow = 1, strip.position = "bottom",
+              labeller = label_wrap_gen(width = 9)) +
+  scale_x_discrete() + 
+  scale_y_continuous(labels = function(x) x * 6, expand = c(0, 0)) +
+  MetBrewer::scale_fill_met_d("VanGogh2", direction = 1) +
+  coord_equal() +
+  labs(title = title_text,
+       subtitle = subtitle_text,
+       y = "Bike Theft Counts",
+       caption = caption_text) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),  # Keep x-axis title blank if not needed
+    axis.title.y = element_text(family = body_font, size = 12),  # Customize y-axis title
+    axis.text.x = element_text(family = body_font, size = 12, angle = 45, hjust = 1, vjust = 1),
+    axis.text.y = element_text(family = body_font, size = 12),
+    # Legend on the right side
+    legend.position = "top",
+    legend.title = element_blank(),
+    legend.spacing = unit(0.5, 'cm'),
+    legend.key.height = unit(0.5, 'cm'),
+    legend.key.width = unit(0.7, 'cm'),
+    legend.text = element_text(family = body_font, size = 13, face = 'plain', color = "grey10"),
+    panel.spacing = unit(2, "lines"),
+    strip.text = element_text(family = body_font, size = 11, margin = margin(t = 10, b = 10)),
+    # Title
+    plot.title.position = "plot",
+    plot.title = element_textbox(margin = margin(10, 0, 10, 0),
+                                 size = 24, family = title_font, face = "bold",
+                                 width = unit(100, "lines"),  color = "grey20"),
+    # Subtitle
+    plot.subtitle = element_text(margin = margin(10, 0, 20, 0),
+                                 size = 16, family = body_font, color = "grey15"),
+    # Caption
+    plot.caption = element_text(family = body_font, face = "plain", size = 14, 
+                                color = "grey40", hjust = .5, margin = margin(20, 0, 0, 0)),
+    plot.background = element_rect(color = "white", fill = "white"),
+    # Adjust plot margin to shift plot left with extra space on the right for legend
+    plot.margin = margin(40, 10, 40,0)
+  )
+```
+Focusing on these “problematic” neighbourhoods further, the visual above highlights where bike thefts generally happened yearly. We see that the majority of cases appear to have occurred outside and in apartments. The trend seems most apparent in both Yonge-Bay Corridor and Downtown Yonge East which, coincidentally, were right beside each other.
+<br>
+
+Most of these neighbourhoods also house numerous apartments or high-rise residential buildings, which means that there is a higher density of residents who potentially rely on bikes for commuting or recreation. Interestingly, a significant number of thefts also seemed to happen near apartments except in University. The presence of these residential buildings increases the likelihood of bikes being parked in shared, accessible areas such as outdoor racks or building entrances. All these locations can be easier targets for theft compared to more secure, private spaces, contributing to the high incidence of bike thefts in these neighbourhoods.
+<br> 
+
+University, mainly consisting of University of Toronto’s campus complex, unsurprisingly seen a high number of bike theft incidents in their premises. Approximately 50% of cases in University happened in educational premises. It sadly highlights the challenges currently faced by students and faculty members who cycle as their main mode of transport. Bikes are generally left unsupervised as students attend classes or faculty members are working, leaving them as an easy prey to theft. Hence, university members critically need adequate and secured space to secure their bicycles while they attend their classes or work which, by the current trend, appears to be lacking.
+
+<br>
+<br>
+
+## Then… When Do Bike Thefts Happen?
+
+Identifying the times when bike thefts are most frequent can also help cyclists better protect their bikes. The data suggests that there seems to be some seasonality in the occurrences of bike thefts in Toronto. Incidences were low at the start, gradually increasing before peaking in July, and gradually dropping back to its initial levels by December. Unsurprisingly, this coincides with the fact that summer months (May - August) experienced the highest number of bike thefts while winter (January - April) saw the lowest. Occurrences, however, did not seem to be affected as much by the time of days as it seems to be fairly equally distributed. <br>
+
+```{r bike_thefts_monthly, fig.width=15, fig.height=9, fig.align='center', out.width="90%", echo = F, warning = F, message = FALSE}
+# Load required libraries
+library(dplyr)
+library(ggplot2)
+library(showtext)
+library(MetBrewer)
+library(ggtext)
+
+# Preprocess the dataset
+bike_thefts_df <- bike_thefts_sf %>%
+  # Step 1: Filter data for the years 2014 to 2023
+  filter(OCC_YEAR >= 2014 & OCC_YEAR <= 2023) %>%
+  
+  # Step 3: Create the 'time' category with ordered levels
+  mutate(time = factor(case_when(
+    OCC_HOUR >= 5 & OCC_HOUR < 12 ~ "Morning (5am - 12pm)",
+    OCC_HOUR >= 12 & OCC_HOUR < 17 ~ "Afternoon (12pm - 5pm)",
+    OCC_HOUR >= 17 & OCC_HOUR < 21 ~ "Evening (5pm - 9pm)",
+    (OCC_HOUR >= 21 & OCC_HOUR <= 23) | (OCC_HOUR >= 0 & OCC_HOUR < 5) ~ "Night (9pm - 5am)"
+  ), levels = c("Morning (5am - 12pm)", 
+                "Afternoon (12pm - 5pm)", 
+                "Evening (5pm - 9pm)", "Night (9pm - 5am)"))) %>%
+  
+  # Step 4: Group by month and time category
+  group_by(OCC_MONTH, time) %>% 
+  # Step 4: Calculate the average number of cases for each month and time
+  summarise(n = n() / length(unique(OCC_YEAR)), .groups = "drop")
+
+# Setting up fonts
+font_add_google("Outfit", "title_font")
+font_add_google("Cabin", "body_font")
+showtext_auto()
+
+title_font <- "title_font"
+body_font <- "body_font"
+
+# Define text for titles
+title_text <- "Bike Thefts Seem to Peak in the Summer in Toronto..."
+subtitle_text <- "Average bike thefts by time of day across the months from 2014 to 2023"
+caption_text <- "Data Source: Toronto Police Bicycle Thefts Open Data"
+
+# Plotting as a stacked bar chart
+ggplot(bike_thefts_df, aes(x = OCC_MONTH, y = n, fill = time)) +
+  geom_bar(stat="identity", position = "dodge", width = 0.6) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  MetBrewer::scale_fill_met_d("VanGogh2", direction = 1) +
+  labs(
+    title = title_text,
+    subtitle = subtitle_text,
+    x = "Month",
+    y = "Average Number of Bike Thefts Reported",
+    fill = "Time of Day",
+    caption = caption_text
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(family = body_font, size = 14),
+    axis.title.y = element_text(family = body_font, size = 14),
+    axis.text.x = element_text(family = body_font, size = 12),
+    axis.text.y = element_text(family = body_font, size = 12),
+    
+    # Legend
+    legend.position = "top",
+    legend.title = element_blank(),
+    legend.spacing = unit(0.5, 'cm'),
+    legend.key.height= unit(0.5, 'cm'),
+    legend.key.width= unit(0.7, 'cm'),
+    legend.text = element_text(family = body_font, size = 11, color = "grey10"),
+    
+    # TITLE
+    plot.title.position = "plot",
+    plot.title = element_textbox(
+      margin = margin(10, 0, 5, 0),
+      size = 24,
+      family = title_font,
+      face = "bold",
+      width = unit(100, "lines"),
+      color = "grey20",
+    ),
+    plot.subtitle = element_text(margin = margin(10, 0, 20, 0), size = 14, family = body_font, color = "grey15"),
+    plot.caption = element_text(family = body_font, size = 10, color = "grey40", hjust = 0.5, margin = margin(20, 0, 0, 0)),
+    plot.background = element_rect(color = "white", fill = "white"),
+    plot.margin = margin(40, 10, 40,10)
+  )
+
+# Optional: Save the plot
+# showtext_opts(dpi = 320)
+# ggsave("img/graph/bike_thefts_stacked_bar_chart.png", dpi = 320, width = 18, height = 10)
+# showtext_auto(FALSE)
+
+```
+
+
+Cycling serves as both means of transportation and exercises for Torontonians, especially under the summer heat. Simply, more bikes are going to be out during the summer months. Thieves, unfortunately, appear to be exploiting this opportunity to prey on unwary cyclists or bikes out in the open. As Winter approaches, cycling becomes less feasible both due to the cold and snowy weather which prompts most bikes to be “at home”. It then also explains the significant drop in bike theft incidents from mid-fall to winter.
+
+<br>
+<br>
+
+## Which Bikes Are Thieves Targeting?
+With a variety of bikes on Toronto’s streets, some bike types have become more frequent targets for theft than others. While there are numerous types of bicycle, most stolen bicycles were mountain, regular, racer, and electric bikes. We can observe that most cases have actually been declining or stagnating, especially since 2018, with some notable exceptions. Interestingly, we could see that incidences for both electric bikes and scooters have seen a relatively gradual but significant increase since 2018 and 2021, respectively. In fact, electric bikes and scooters rose to be the third and fifth most stolen bike types in 2023. Both trends highlight potential risks for upcoming e-bike and scooter owners in Toronto.
+
+<br>
+```{r bike_thefts_type, fig.width=16, fig.height=9,  fig.align='center', out.width="90%", echo = F, warning = F, message = FALSE}
+# Add required libraries for fonts and other settings
+library(showtext)
+library(showtext)
+library(MetBrewer)
+font_add_google("Outfit", "title_font")
+font_add_google("Cabin", "body_font")
+showtext_auto()
+
+# Set fonts and text
+title_font <- "title_font"
+body_font <- "body_font"
+title_text <- "Most Favourable Bike Types by the Thefts: The Rise of Electric Bikes and Scooters Stolen Cases"
+subtitle_text <- "Most Targeted Bike Types in Toronto: The Rise in Electric Bike and Scooter Thefts"
+caption_text <- "Data Source: Toronto Police Bicycle Thefts Open Data"
+
+top5 <- bike_thefts_sf %>%
+  st_drop_geometry() %>%
+  filter(REPORT_YEAR != 2024) %>%
+  mutate(BIKE_TYPE = recode(BIKE_TYPE,
+                            "EL" = "Electric",
+                            "MT" = "Mountain",
+                            "OT" = "Other",
+                            "RC" = "Racer",
+                            "RG" = "Regular",
+                            'BM' = 'BMX',
+                            'FO' = 'Folding',
+                            'RE' = 'Recumbant',
+                            'SC' = 'Scooter',
+                            'TA' = 'Tandem',
+                            'TO' = 'Touring',
+                            'TR' = 'Tricycle',
+                            'UN' = 'Unicycle')) %>%
+  # Filter to include only the specified bike types
+  filter(BIKE_TYPE %in% c("Electric", "Mountain", "Racer", "Touring", "Scooter", "Regular")) %>%
+  group_by(REPORT_YEAR, BIKE_TYPE) %>%
+  summarise(incidences = n(), .groups = "drop")
+
+
+# Extract the "VanGogh2" color palette from MetBrewer
+vangogh_colors <- MetBrewer::met.brewer("Cross", n = 7)
+
+top5 %>% 
+  ggplot(aes(REPORT_YEAR, incidences, color = BIKE_TYPE)) +
+  geom_line(aes(
+    linetype = ifelse(BIKE_TYPE == "Electric" | BIKE_TYPE == "Scooter", "solid", "dashed"),
+    size = ifelse(BIKE_TYPE == "Electric" | BIKE_TYPE == "Scooter", 1, 0.7),
+    alpha = ifelse(BIKE_TYPE == "Electric" | BIKE_TYPE == "Scooter", 1, 0.7)
+  )) +
+  scale_color_manual(
+    values = c(
+      "Electric" = vangogh_colors[5],
+      "Mountain" = vangogh_colors[2],
+      "Racer" = vangogh_colors[4],
+      "Touring" = vangogh_colors[1],
+      "Scooter" = vangogh_colors[6],
+      "Regular" =  vangogh_colors[7]
+    ),
+    breaks = c("Regular", "Mountain", "Racer", "Touring", "Scooter", "Electric"),
+    guide = guide_legend(override.aes = list(size = 4)
+  ) )+
+  scale_linetype_identity() +
+  scale_size_identity() +
+  scale_alpha_identity() +
+  labs(
+    title = title_text,
+    subtitle = subtitle_text,
+    x = "Report Year",
+    y = "Bike Theft Incidences",
+    color = "Bike Types",
+    linetype = "Type of Bike",
+    caption = caption_text
+  ) +
+  scale_x_continuous(breaks = seq(2014, 2023, 1)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  theme_minimal(base_family = body_font) +
+  theme(
+    plot.title = element_text(family = title_font, size = 24, face = "bold", margin = margin(b = 10),  color = "grey20"),
+    plot.subtitle = element_text(family = body_font, size = 14, margin = margin(b = 20)),
+    plot.caption = element_text(family = body_font, size = 10, color = "grey40", margin = margin(t = 10)),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    legend.position = "top",
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12)
+  ) +
+  theme(
+    plot.margin = margin(40, 20, 40, 5)
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(size = 5)),  # Thicker lines in the legend
+    linetype = guide_legend(override.aes = list(size = 5))  # Adjust linetype legend line thickness
+  ) +
+  coord_cartesian(expand = FALSE)
+```
+
+
+Electric bikes and scooters have both been a growing mode of transportation in Toronto. The growing demand for electric vehicles, environmental-conscious concerns, and the introduction of e-bikes to the Toronto BikeShare’s rosters are few potential drivers to this growing demand. In addition, both methods offer riders a smoother and lighter journey especially with their motor-assisted ride. The rapid rise in demand, however, also draws more attention to thieves especially given that most options cost you at least \$1000 for e-bikes or \$500 for scooters. Therefore, more caution would be needed when considering these bike purchases.
+
+
+
+<br>
+<br>
+
+## All These Seem Concerning… Now What?
+While bike theft incidents have decreased from their peak, they remain a significant issue in Toronto. Cyclists in downtown neighbourhoods should be especially cautious during summer months, when theft risks are highest. Those who typically park their bikes outside—particularly in high-theft areas between the Annex and St. Lawrence—should stay vigilant, especially if they own an electric bike or scooter. <br>
+
+For regular or professional cyclists who own a bike, caution is necessary when parking outside, as thefts are also prevalent in residential spaces such as apartments and houses. To reduce the risk of theft in what may seem like a “safe” place, ensure you have access to adequate, secure, and monitored bicycle parking, especially in apartment or condominium buildings. Avoid leaving your bike outdoors whenever possible; ideally, bring it inside your home or apartment. Additionally, take extra caution if you are biking downtown in the summer, and prioritise safer storage options for your bike. <br>
+
+If you are a casual cyclist who bikes around downtown Toronto, but you are anxious about getting your bike stolen or not sure where to park safely… We have a solution for you: Bike Share Toronto! Bike Share Toronto offers a convenient and secure transportation alternative around town. It allows you to go pretty much anywhere in Toronto, featuring over 680 stations and more than 7000 bikes. The program offers both regular and electric bicycles which can be rented at a relatively cheap price, allowing you to access bikes without the worry of theft.
+
+
+<br>
+<br>
+
+## Some Remaining Questions
+There are several questions left unanswered in this article. What caused the rapid rise in bike thefts between 2014 and 2020, and what has contributed to the decline since then? Potential explanations could include the lack of adequate bike-storing options in high-risks areas or simply due to the increasing bike demand prior and during the pandemic. The drop seen after 2020 might potentially be explained by the rapidly growing Toronto BikeShare program which has grown from a mere 400 thousand to 5.7 millions yearly rides. However, the data lacks essential details that could deepen our understanding of these trends. Data on bike storage facilities, neighbourhood population density, and annual bike sales are not included or unavailable, limiting our ability to assess factors like infrastructure adequacy or theft rates relative to bike ownership. Would higher bike theft rates correlate with areas of greater population density, or might they simply reflect increased bike ownership? These questions remain unanswered here, but they point to valuable directions for future analysis. <br>
+
+As we continue exploring Toronto’s bike theft landscape, gaining insight into these trends can ultimately help cyclists protect their property, and guide city efforts to make Toronto a safer, more bike-friendly city. Stay tuned for more!
+
+
+<br>
+<br>
+<br>
+<br>
